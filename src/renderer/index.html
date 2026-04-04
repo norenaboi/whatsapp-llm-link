@@ -1082,9 +1082,14 @@
         chatView.innerHTML = `
           <div class="chat-header">
             <h3>${data.chat.name}</h3>
-            <div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <button onclick="clearChatHistory('${data.chat.id}')"
+                style="background: #c0392b; color: white; border: none; border-radius: 8px;
+                       padding: 6px 12px; cursor: pointer; font-size: 13px;">
+                🗑 Clear History
+              </button>
               <label class="switch">
-                <input type="checkbox" ${data.chat.autoReplyEnabled ? 'checked' : ''} 
+                <input type="checkbox" ${data.chat.autoReplyEnabled ? 'checked' : ''}
                   onclick="toggleAutoReply('${data.chat.id}', this.checked)">
                 <span class="slider"></span>
               </label>
@@ -1180,6 +1185,26 @@
       }
     }
     
+    // Clear history for a chat
+    function clearChatHistory(chatId) {
+      if (!window.api) return;
+
+      // Optional: ask for confirmation before wiping
+      if (!confirm('Clear all message history for this chat? This cannot be undone.')) return;
+
+      window.api.chats.clearHistory(chatId).then(result => {
+        if (result.success) {
+          // Wipe the messages container in the UI immediately
+          const messagesContainer = document.getElementById('messages');
+          if (messagesContainer) messagesContainer.innerHTML = '';
+
+          showMessage('Chat history cleared.');
+        } else {
+          showMessage('Failed to clear history: ' + result.message, true);
+        }
+      });
+    }
+
     // Start initialization when the window loads
     window.addEventListener('DOMContentLoaded', () => {
       initialize();

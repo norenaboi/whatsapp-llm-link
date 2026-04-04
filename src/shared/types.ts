@@ -81,6 +81,7 @@ export enum IPCChannels {
   WHATSAPP_MESSAGE_CREATE = 'whatsapp:message-create',
   CHAT_LIST_UPDATE = 'chats:update',
   CHAT_HISTORY = 'chat:history',
+  CLEAR_CHAT_HISTORY = 'chat:clear-history',
   TOGGLE_AUTO_REPLY = 'chat:toggle-auto-reply',
   SEND_MESSAGE = 'chat:send-message',
   APP_SETTINGS_GET = 'settings:get',

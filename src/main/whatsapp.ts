@@ -515,6 +515,25 @@ function setupIPCHandlers() {
     
     return null;
   });
+
+  // Clear chat history for a specific chat
+  ipcMain.handle('chat:clear-history', async (_, chatId: string) => {
+    const chat = chats.get(chatId);
+    if (!chat) return { success: false, message: 'Chat not found' };
+
+    // Clear messages from memory
+    chat.messages = [];
+    chat.lastMessage = undefined;
+
+    // Clear from persistent store
+    conversationStore.delete(`chat:${chatId}`);
+
+    // Push the updated (empty) chat list to the renderer
+    sendChatListUpdate();
+
+    console.log(`Cleared history for chat ${chatId}`);
+    return { success: true };
+  });
   
   // Listen for 'refresh-chats' request from renderer to force update
   ipcMain.on('refresh-chats', () => {

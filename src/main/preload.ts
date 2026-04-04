@@ -71,6 +71,10 @@ contextBridge.exposeInMainWorld('api', {
     sendMessage: async (chatId, text) => {
       return ipcRenderer.invoke(IPCChannels.SEND_MESSAGE, chatId, text);
     },
+
+    clearHistory: async (chatId) => {
+      return ipcRenderer.invoke('chat:clear-history', chatId);
+    },
     
     refreshChats: () => {
       ipcRenderer.send('refresh-chats');
