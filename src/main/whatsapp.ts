@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+﻿import { BrowserWindow, ipcMain } from 'electron';
 import { Client, LocalAuth, Message, MessageMedia } from 'whatsapp-web.js';
 import * as fs from 'fs';
 import * as fsExtra from 'fs-extra';
@@ -264,30 +264,114 @@ function convertMessage(message: Message): ChatMessage {
   };
 }
 
-// Handle incoming message
 async function handleIncomingMessage(message: Message) {
   try {
     // Ignore status messages
     if (message.isStatus) return;
-    
+
+    const body = message.body.trim();
+
+    // /new command — reset conversation history
+    if (body.toLowerCase() === '/new') {
+      const chatId = message.from;
+      const chat = chats.get(chatId);
+
+      if (chat) {
+        chat.messages = [];
+        chat.lastMessage = undefined;
+        conversationStore.delete(`chat:${chatId}`);
+
+        /*
+        await whatsappClient?.sendMessage(
+          chatId,
+          'Conversation history cleared.'
+        );
+        */
+
+        sendChatListUpdate();
+        console.log(`[/new] Cleared history for chat ${chatId}`);
+      }
+
+      return;
+    }
+
+    // /delete {num} command — remove last N messages
+    const deleteMatch = body.match(/^\/delete\s+(\d+)$/i);
+    if (deleteMatch) {
+      const chatId = message.from;
+      const chat = chats.get(chatId);
+      const numToDelete = parseInt(deleteMatch[1], 10);
+
+      // Validate the number
+      if (numToDelete <= 0) {
+        /*
+        await whatsappClient?.sendMessage(
+          chatId,
+          'Please provide a number greater than 0.\nUsage: /delete {num}'
+        );
+        */
+        return;
+      }
+
+      if (!chat || chat.messages.length === 0) {
+        /*
+        await whatsappClient?.sendMessage(
+          chatId,
+          'No messages in history to delete.'
+        );
+        */
+        return;
+      }
+
+      // Cap deletion at the total number of messages available
+      const available = chat.messages.length;
+      const actuallyDeleted = Math.min(numToDelete, available);
+
+      // Slice off the last N messages
+      chat.messages = chat.messages.slice(0, -actuallyDeleted);
+
+      // Update lastMessage pointer to whatever is now at the end
+      chat.lastMessage = chat.messages.length > 0
+        ? chat.messages[chat.messages.length - 1]
+        : undefined;
+
+      // Persist the trimmed history
+      saveConversation(chatId, chat.messages);
+      sendChatListUpdate();
+
+      const wasCapped = actuallyDeleted < numToDelete
+        ? ` (only ${available} message${available !== 1 ? 's' : ''} existed)`
+        : '';
+
+      /*
+      await whatsappClient?.sendMessage(
+        chatId,
+        `Deleted last ${actuallyDeleted} message${actuallyDeleted !== 1 ? 's' : ''} from history${wasCapped}.`
+      );
+      */
+
+      console.log(`[/delete] Removed last ${actuallyDeleted} messages from chat ${chatId}`);
+      return;
+    }
+
     // Convert to our message format
     const chatMessage = convertMessage(message);
-    
+
     // Update chat with the message
     await updateChatWithMessage(message);
-    
+
     // Send message to renderer immediately
     mainWindow?.webContents.send(IPCChannels.WHATSAPP_MESSAGE, {
       chatId: message.from,
       message: chatMessage
     });
     console.log('Sent message to UI:', chatMessage.body);
-    
+
     // Check if we should auto-reply
-    const shouldAutoReply = 
-      (autoReplyChatIds.has(message.from) || settingsStore.store.autoReplyToAll) && 
+    const shouldAutoReply =
+      (autoReplyChatIds.has(message.from) || settingsStore.store.autoReplyToAll) &&
       !message.fromMe;
-    
+
     if (shouldAutoReply) {
       await generateAndSendAutoReply(message);
     }
@@ -342,10 +426,11 @@ async function updateChatWithMessage(message: Message) {
 }
 
 // Helper function to apply a delay based on settings
-async function applyReplyDelay() {
+async function applyReplyDelay(chatId: string) {
   const settings = settingsStore.store as unknown as AppSettings;
+
   let delayMs = 0;
-  
+
   switch (settings.replyDelay) {
     case 'fixed':
       delayMs = (settings.fixedDelaySeconds || 0) * 1000;
@@ -360,11 +445,42 @@ async function applyReplyDelay() {
       delayMs = 0;
       break;
   }
-  
-  if (delayMs > 0) {
-    console.log(`Delaying response by ${delayMs}ms`);
-    return new Promise(resolve => setTimeout(resolve, delayMs));
+
+  if (delayMs <= 0) return;
+
+  try {
+    // Grab the whatsapp-web.js Chat object (different from our internal Chat)
+    const wwebChat = await whatsappClient?.getChatById(chatId);
+
+    if (wwebChat) {
+      // Show "typing..." on the other end for the full delay duration
+      await wwebChat.sendStateTyping();
+      console.log(`[typing] Showing typing state for ${delayMs}ms in chat ${chatId}`);
+
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+
+      // Clear the typing indicator before sending the actual message
+      await wwebChat.clearState();
+      console.log(`[typing] Cleared typing state in chat ${chatId}`);
+    } else {
+      // Chat not found — fall back to plain delay so message still sends
+      console.warn(`[typing] Could not find chat ${chatId}, falling back to plain delay`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  } catch (error) {
+    // Never block the message send if typing state fails
+    console.error('[typing] Error setting typing state:', error);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
   }
+}
+
+// Split LLM response into individual messages on blank lines
+// Filters out empty segments so double blank lines don't produce empty messages
+function splitIntoMessages(response: string): string[] {
+  return response
+    .split(/\n\s*\n/)           // split on one or more blank lines
+    .map(segment => segment.trim())
+    .filter(segment => segment.length > 0);
 }
 
 // Generate and send auto-reply
@@ -372,38 +488,45 @@ async function generateAndSendAutoReply(message: Message) {
   try {
     const chatId = message.from;
     const chat = chats.get(chatId);
-    
+
     if (!chat) return;
-    
+
     console.log(`Generating auto-reply for chat ${chatId}`);
-    
-    // Set flag that we're currently auto-replying
+
     global.isAutoReplying = true;
     global.autoReplyingChatId = chatId;
-    
-    // Generate response using LLM
+
+    // Generate full LLM response first
     const response = await generateLLMResponse(chat);
-    
+
     if (!response) {
-      // Reset flag if we failed to generate a response
       global.isAutoReplying = false;
       global.autoReplyingChatId = null;
       return;
     }
-    
+
     console.log(`LLM generated response: ${response}`);
-    
-    // Apply delay before sending the message
-    await applyReplyDelay();
-    
-    // Send response - the message_create event will handle marking as LLM response
-    await sendMessage(chatId, response);
-    
-    // Note: We don't need to manually mark the message anymore as that's handled in the message_create handler
-    // The message_create event will reset the auto-reply flags after processing
+
+    // Split into individual message segments
+    const segments = splitIntoMessages(response);
+    console.log(`Split into ${segments.length} message(s)`);
+
+    // Send each segment with its own typing indicator + delay
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+
+      // Show typing indicator and wait for delay before each segment
+      await applyReplyDelay(chatId);
+
+      // Send this segment
+      await sendMessage(chatId, segment);
+      console.log(`Sent segment ${i + 1}/${segments.length}: ${segment}`);
+    }
+
   } catch (error) {
     console.error('Error generating auto-reply:', error);
-    // Reset flags on error
+  } finally {
+    // Always reset flags whether we succeeded or failed
     global.isAutoReplying = false;
     global.autoReplyingChatId = null;
   }
