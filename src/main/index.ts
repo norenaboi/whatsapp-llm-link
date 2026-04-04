@@ -46,6 +46,7 @@ interface LLMSettings {
   maxHistoryLength: number;
   apiKey?: string;
   apiEndpoint?: string;
+  customApiKey?: string;
 }
 
 // Default settings
@@ -68,7 +69,8 @@ const defaultLLMSettings: LLMSettings = {
   model: 'gpt-3.5-turbo',
   temperature: 0.7,
   systemPrompt: 'You are a helpful WhatsApp assistant. Keep responses concise, friendly, and informative.',
-  maxHistoryLength: 10
+  maxHistoryLength: 10,
+  customApiKey: ''
 };
 
 // Initialize stores

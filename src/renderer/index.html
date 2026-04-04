@@ -668,6 +668,12 @@
                   <p class="field-hint">${llmSettings.provider === 'local' ? 'For Ollama, typically http://localhost:11434/api/generate' : 'Enter the full URL to the API endpoint'}</p>
                 </div>
                 
+                <div class="settings-field" id="custom-api-key-field" ${llmSettings.provider !== 'custom' ? 'style="display: none;"' : ''}>
+                  <label>Custom Endpoint API Key</label>
+                  <input type="password" id="custom-api-key" value="${llmSettings.customApiKey || ''}">
+                  <p class="field-hint">Optional — leave blank if your endpoint does not require authentication</p>
+                </div>
+
                 <div class="settings-field">
                   <label>Model</label>
                   <input type="text" id="model" value="${llmSettings.model}">
@@ -694,7 +700,7 @@
                 
                 <div class="settings-field">
                   <label>Message History Length: ${llmSettings.maxHistoryLength}</label>
-                  <input type="range" id="max-history" min="1" max="20" step="1" value="${llmSettings.maxHistoryLength}">
+                  <input type="range" id="max-history" min="1" max="100" step="1" value="${llmSettings.maxHistoryLength}">
                   <p class="field-hint">Number of recent messages to include in conversation context</p>
                 </div>
                 
@@ -713,13 +719,18 @@
               const provider = e.target.value;
               const apiKeyField = document.getElementById('api-key-field');
               const apiEndpointField = document.getElementById('api-endpoint-field');
-              
               if (provider === 'openai') {
-                apiKeyField.style.display = 'block';
-                apiEndpointField.style.display = 'none';
+                  apiKeyField.style.display = 'block';
+                  apiEndpointField.style.display = 'none';
+                  document.getElementById('custom-api-key-field').style.display = 'none';
+              } else if (provider === 'custom') {
+                  apiKeyField.style.display = 'none';
+                  apiEndpointField.style.display = 'block';
+                  document.getElementById('custom-api-key-field').style.display = 'block';
               } else {
-                apiKeyField.style.display = 'none';
-                apiEndpointField.style.display = 'block';
+                  apiKeyField.style.display = 'none';
+                  apiEndpointField.style.display = 'block';
+                  document.getElementById('custom-api-key-field').style.display = 'none';
               }
             });
           }
@@ -860,6 +871,9 @@
         settings.apiKey = document.getElementById('api-key')?.value || '';
       } else {
         settings.apiEndpoint = document.getElementById('api-endpoint')?.value || '';
+        if (provider === 'custom') {
+          settings.customApiKey = document.getElementById('custom-api-key')?.value || '';
+        }
       }
       
       window.api.settings.setLLMSettings(settings).then(() => {

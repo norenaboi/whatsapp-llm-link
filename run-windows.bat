@@ -68,6 +68,10 @@ if not exist "node_modules\.bin\electron.cmd" (
 
 :: Start the application using npx to ensure correct path resolution
 echo Starting WhatsApp LLM Assistant...
+call npx tsc
+if not exist "dist\renderer" mkdir "dist\renderer"
+copy "src\renderer\index.html" "dist\renderer\index.html"
+copy "src\renderer\styles.css" "dist\renderer\styles.css"
 call npx electron .
 
 if %ERRORLEVEL% neq 0 (

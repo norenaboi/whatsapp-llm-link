@@ -42,6 +42,7 @@ export interface LLMSettings {
   temperature: number;
   systemPrompt: string;
   apiEndpoint?: string;
+  customApiKey?: string;
   maxHistoryLength: number;
 }
 

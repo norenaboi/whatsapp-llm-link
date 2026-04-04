@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+﻿import OpenAI from 'openai';
 import axios from 'axios';
 
 // Define types needed
@@ -10,6 +10,7 @@ interface LLMSettings {
   maxHistoryLength: number;
   apiKey?: string;
   apiEndpoint?: string;
+  customApiKey?: string;
 }
 
 interface Chat {
@@ -133,14 +134,25 @@ async function generateCustomEndpointResponse(messages: LLMMessage[]): Promise<s
     temperature: llmSettings.temperature,
     max_tokens: 500,
   };
-  
+
   const response = await axios.post(llmSettings.apiEndpoint, payload, {
     headers: {
       'Content-Type': 'application/json',
+      ...(llmSettings.customApiKey && { 'Authorization': `Bearer ${llmSettings.customApiKey}` }),
     },
   });
   console.log(response.data)
-   return response.data?.message?.content || null;
+
+  // Handle OpenAI-compatible response shape (custom endpoints, OpenRouter, etc.)
+  const openAIContent = response.data?.choices?.[0]?.message?.content;
+  if (openAIContent) return openAIContent;
+
+  // Fallback: handle native Ollama response shape (/api/generate or /api/chat)
+  const ollamaContent = response.data?.message?.content   // /api/chat
+                     ?? response.data?.response;          // /api/generate
+  if (ollamaContent) return ollamaContent;
+
+  return null;
 }
 
 // Test the LLM configuration
