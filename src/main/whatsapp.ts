@@ -478,7 +478,8 @@ async function applyReplyDelay(chatId: string) {
 // Filters out empty segments so double blank lines don't produce empty messages
 function splitIntoMessages(response: string): string[] {
   return response
-    .split(/\n\s*\n/)           // split on one or more blank lines
+    .split(/\n/)                // split on every single newline
+    // .split(/\n\s*\n/)           // split on one or more blank lines
     .map(segment => segment.trim())
     .filter(segment => segment.length > 0);
 }
@@ -544,8 +545,8 @@ function sendChatListUpdate() {
 
 // Save conversation to store
 function saveConversation(chatId: string, messages: ChatMessage[]) {
-  // Limit to last 100 messages to prevent store from growing too large
-  const messagesToSave = messages.slice(-100);
+  // Limit to last 500 messages to prevent store from growing too large
+  const messagesToSave = messages.slice(-500);
   conversationStore.set(`chat:${chatId}`, messagesToSave);
 }
 
