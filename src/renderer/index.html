@@ -617,6 +617,27 @@
                     <p class="field-hint">Wait a random amount of time between min and max seconds before sending each auto-reply</p>
                   </div>
                 </div>
+
+                <div class="settings-field" style="border: 2px dashed #4caf50; padding: 16px; border-radius: 4px; margin-top: 16px;">
+                  <label style="color: #4caf50; font-weight: bold;">Random Auto-Message</label>
+                  <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                    <label class="switch">
+                      <input type="checkbox" id="random-auto-message" ${appSettings.randomAutoMessage ? 'checked' : ''}>
+                      <span class="slider"></span>
+                    </label>
+                    <span>Proactively send a message after a random interval</span>
+                  </div>
+
+                  <div id="random-auto-message-settings" style="margin-top: 14px; ${appSettings.randomAutoMessage ? '' : 'display: none;'}">
+                    <label>Min Interval: <span id="ram-min-value">${appSettings.randomAutoMessageMinMinutes || 30}</span> min</label>
+                    <input type="range" id="ram-min-minutes" min="0" max="720" step="15" value="${appSettings.randomAutoMessageMinMinutes || 30}">
+
+                    <label style="margin-top: 10px; display: block;">Max Interval: <span id="ram-max-value">${appSettings.randomAutoMessageMaxMinutes || 240}</span> min</label>
+                    <input type="range" id="ram-max-minutes" min="30" max="1440" step="30" value="${appSettings.randomAutoMessageMaxMinutes || 240}">
+
+                    <p class="field-hint">After each auto-reply cycle, a new message will be fired after a random time in this range</p>
+                  </div>
+                </div>
                 
                 <div class="settings-field">
                   <label class="switch">
@@ -796,7 +817,10 @@
         replyDelay: document.getElementById('reply-delay')?.value || 'instant',
         fixedDelaySeconds: parseInt(document.getElementById('fixed-delay-seconds')?.value || '3'),
         minDelaySeconds: parseInt(document.getElementById('min-delay-seconds')?.value || '2'),
-        maxDelaySeconds: parseInt(document.getElementById('max-delay-seconds')?.value || '10')
+        maxDelaySeconds: parseInt(document.getElementById('max-delay-seconds')?.value || '10'),
+        randomAutoMessage: document.getElementById('random-auto-message')?.checked || false,
+        randomAutoMessageMinMinutes: parseInt(document.getElementById('ram-min-minutes')?.value || '30'),
+        randomAutoMessageMaxMinutes: parseInt(document.getElementById('ram-max-minutes')?.value || '120')
       };
       
       window.api.settings.setAppSettings(settings).then(() => {
@@ -849,6 +873,26 @@
         maxSlider.addEventListener('input', () => {
           maxValue.textContent = maxSlider.value;
         });
+      }
+
+      const ramToggle = document.getElementById('random-auto-message');
+      const ramSettings = document.getElementById('random-auto-message-settings');
+      if (ramToggle && ramSettings) {
+        ramToggle.addEventListener('change', () => {
+          ramSettings.style.display = ramToggle.checked ? 'block' : 'none';
+        });
+      }
+
+      const ramMinSlider = document.getElementById('ram-min-minutes');
+      const ramMinValue = document.getElementById('ram-min-value');
+      if (ramMinSlider && ramMinValue) {
+        ramMinSlider.addEventListener('input', () => { ramMinValue.textContent = ramMinSlider.value; });
+      }
+
+      const ramMaxSlider = document.getElementById('ram-max-minutes');
+      const ramMaxValue = document.getElementById('ram-max-value');
+      if (ramMaxSlider && ramMaxValue) {
+        ramMaxSlider.addEventListener('input', () => { ramMaxValue.textContent = ramMaxSlider.value; });
       }
     }
     

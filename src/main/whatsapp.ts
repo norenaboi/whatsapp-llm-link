@@ -71,6 +71,7 @@ const chats = new Map<string, Chat>();
 const autoReplyChatIds = new Set<string>();
 const conversationStore = new Store({ name: 'conversations' });
 const settingsStore = new Store({ name: 'settings' });
+const randomAutoMessageTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 // Initialize WhatsApp client
 export function initWhatsApp(window: BrowserWindow) {
@@ -474,6 +475,60 @@ async function applyReplyDelay(chatId: string) {
   }
 }
 
+function scheduleRandomAutoMessage(chatId: string) {
+  // Clear any existing timer for this chat
+  if (randomAutoMessageTimers.has(chatId)) {
+    clearTimeout(randomAutoMessageTimers.get(chatId)!);
+    randomAutoMessageTimers.delete(chatId);
+  }
+
+  const settings = settingsStore.store as unknown as AppSettings;
+
+  if (!settings.randomAutoMessage) return;
+  if (!autoReplyChatIds.has(chatId) && !settings.autoReplyToAll) return;
+
+  const minMs = (settings.randomAutoMessageMinMinutes || 30) * 60 * 1000;
+  const maxMs = (settings.randomAutoMessageMaxMinutes || 240) * 60 * 1000;
+  const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+
+  console.log(`[random-auto] Scheduling message for chat ${chatId} in ${Math.round(delayMs / 60000)} min`);
+
+  const timer = setTimeout(async () => {
+    randomAutoMessageTimers.delete(chatId);
+
+    const chat = chats.get(chatId);
+    if (!chat) return;
+
+    const currentSettings = settingsStore.store as unknown as AppSettings;
+    if (!currentSettings.randomAutoMessage) return;
+
+    console.log(`[random-auto] Firing random auto-message for chat ${chatId}`);
+
+    global.isAutoReplying = true;
+    global.autoReplyingChatId = chatId;
+
+    try {
+      const response = await generateLLMResponse(chat);
+      if (!response) return;
+
+      const segments = splitIntoMessages(response);
+      for (const segment of segments) {
+        await applyReplyDelay(chatId);
+        await sendMessage(chatId, segment);
+      }
+    } catch (err) {
+      console.error('[random-auto] Error sending random message:', err);
+    } finally {
+      global.isAutoReplying = false;
+      global.autoReplyingChatId = null;
+      // Reschedule for the next round
+      scheduleRandomAutoMessage(chatId);
+    }
+  }, delayMs);
+
+  randomAutoMessageTimers.set(chatId, timer);
+}
+
 // Split LLM response into individual messages on blank lines
 // Filters out empty segments so double blank lines don't produce empty messages
 function splitIntoMessages(response: string): string[] {
@@ -601,10 +656,16 @@ function setupIPCHandlers() {
   ipcMain.on(IPCChannels.TOGGLE_AUTO_REPLY, (_, chatId: string, enabled: boolean) => {
     if (enabled) {
       autoReplyChatIds.add(chatId);
+      scheduleRandomAutoMessage(chatId);
     } else {
       autoReplyChatIds.delete(chatId);
+      // Cancel any pending random timer
+      if (randomAutoMessageTimers.has(chatId)) {
+        clearTimeout(randomAutoMessageTimers.get(chatId)!);
+        randomAutoMessageTimers.delete(chatId);
+      }
     }
-    
+
     // Update chat
     const chat = chats.get(chatId);
     if (chat) {
@@ -681,5 +742,20 @@ export async function sendMessage(chatId: string, text: string): Promise<boolean
   } catch (error) {
     console.error('Error sending message:', error);
     return false;
+  }
+}
+
+// Notify changes
+export function onSettingsChanged() {
+  const settings = settingsStore.store as unknown as AppSettings;
+  for (const chatId of autoReplyChatIds) {
+    if (settings.randomAutoMessage) {
+      scheduleRandomAutoMessage(chatId);
+    } else {
+      if (randomAutoMessageTimers.has(chatId)) {
+        clearTimeout(randomAutoMessageTimers.get(chatId)!);
+        randomAutoMessageTimers.delete(chatId);
+      }
+    }
   }
 }

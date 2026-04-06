@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, Menu, Tray } from 'electron';
 import * as path from 'path';
 import { autoUpdater } from 'electron-updater';
 import Store from 'electron-store';
-import { initWhatsApp } from './whatsapp';
+import { initWhatsApp, onSettingsChanged } from './whatsapp';
 import { configureLLM } from './llm';
 
 // Define channel constants directly
@@ -36,6 +36,9 @@ interface AppSettings {
   fixedDelaySeconds: number;
   minDelaySeconds: number;
   maxDelaySeconds: number;
+  randomAutoMessage: boolean;
+  randomAutoMessageMinMinutes: number;
+  randomAutoMessageMaxMinutes: number;
 }
 
 interface LLMSettings {
@@ -61,7 +64,11 @@ const defaultAppSettings: AppSettings = {
   replyDelay: 'instant',
   fixedDelaySeconds: 3,
   minDelaySeconds: 2,
-  maxDelaySeconds: 10
+  maxDelaySeconds: 10,
+  randomAutoMessage: false,
+  randomAutoMessageMinMinutes: 30,
+  randomAutoMessageMaxMinutes: 240
+
 };
 
 const defaultLLMSettings: LLMSettings = {
@@ -199,6 +206,7 @@ ipcMain.handle(IPCChannels.APP_SETTINGS_SET, (_, settings: Partial<AppSettings>)
   const prevSettings = { ...settingsStore.store };
   const updatedSettings = { ...prevSettings, ...settings };
   settingsStore.store = updatedSettings;
+  onSettingsChanged();
   
   // Toggle DevTools based on debugMode change
   if (mainWindow && 'debugMode' in settings && prevSettings.debugMode !== settings.debugMode) {

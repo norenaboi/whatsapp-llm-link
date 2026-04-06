@@ -69,6 +69,9 @@ export interface AppSettings {
   fixedDelaySeconds: number;
   minDelaySeconds: number;
   maxDelaySeconds: number;
+  randomAutoMessage: boolean;
+  randomAutoMessageMinMinutes: number;
+  randomAutoMessageMaxMinutes: number;
 }
 
 // IPC Channel definitions
