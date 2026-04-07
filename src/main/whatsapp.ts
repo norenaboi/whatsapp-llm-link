@@ -586,13 +586,33 @@ async function generateAndSendAutoReply(message: Message) {
 
       if (resolution.type === 'image') {
         if (!resolution.media) {
-          // File was missing — skip silently, already logged in resolver
           console.warn(`[whatsapp] Skipping missing image: ${resolution.filename}`);
           continue;
         }
+
         await applyReplyDelay(chatId);
         console.log(`Sending image ${i + 1}/${segments.length}: ${resolution.filename}`);
+
         await sendMessage(chatId, resolution.media);
+
+        // Inject a synthetic history entry so the LLM remembers sending this image
+        const chat = chats.get(chatId);
+        if (chat) {
+          const syntheticMessage: ChatMessage = {
+            id: `llm-img-${Date.now()}-${i}`,
+            body: `[Image: ${resolution.filename}]`,
+            fromMe: true,
+            timestamp: Math.floor(Date.now() / 1000),
+            hasMedia: true,
+            isForwarded: false,
+            isStarred: false,
+            isLLMResponse: true,
+          };
+          chat.messages.push(syntheticMessage);
+          chat.lastMessage = syntheticMessage;
+          saveConversation(chatId, chat.messages);
+        }
+
       } else {
         await applyReplyDelay(chatId);
         console.log(`Sending text ${i + 1}/${segments.length}: ${segment}`);

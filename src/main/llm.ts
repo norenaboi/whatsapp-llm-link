@@ -63,7 +63,7 @@ export function configureLLM(settings: LLMSettings) {
 function stripTimestampLines(text: string): string {
   return text
     .split('\n')
-    .filter(line => !/^\[Sent at.*\|.*\]/.test(line.trim()))
+    .filter(line => !/^\[Sent.*\]/.test(line.trim()))
     .join('\n')
     .trim();
 }
