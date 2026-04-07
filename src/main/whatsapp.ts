@@ -6,6 +6,7 @@ import * as path from 'path';
 import Store from 'electron-store';
 import { generateLLMResponse } from './llm';
 import { AppSettings } from '../shared/types';
+import { resolveSegment } from './imageResolver';
 
 // Define channel constants directly here
 const IPCChannels = {
@@ -513,8 +514,19 @@ function scheduleRandomAutoMessage(chatId: string) {
 
       const segments = splitIntoMessages(response);
       for (const segment of segments) {
+        const resolution = resolveSegment(segment);
         await applyReplyDelay(chatId);
-        await sendMessage(chatId, segment);
+
+        if (resolution.type === 'image') {
+          if (!resolution.media) {
+            // File was missing — skip silently, already logged in resolver
+            console.warn(`[whatsapp] Skipping missing image: ${resolution.filename}`);
+            continue;
+          }
+          await sendMessage(chatId, resolution.media);
+        } else {
+          await sendMessage(chatId, segment);
+        }
       }
     } catch (err) {
       console.error('[random-auto] Error sending random message:', err);
@@ -570,13 +582,22 @@ async function generateAndSendAutoReply(message: Message) {
     // Send each segment with its own typing indicator + delay
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
+      const resolution = resolveSegment(segment);
 
-      // Show typing indicator and wait for delay before each segment
-      await applyReplyDelay(chatId);
-
-      // Send this segment
-      await sendMessage(chatId, segment);
-      console.log(`Sent segment ${i + 1}/${segments.length}: ${segment}`);
+      if (resolution.type === 'image') {
+        if (!resolution.media) {
+          // File was missing — skip silently, already logged in resolver
+          console.warn(`[whatsapp] Skipping missing image: ${resolution.filename}`);
+          continue;
+        }
+        await applyReplyDelay(chatId);
+        console.log(`Sending image ${i + 1}/${segments.length}: ${resolution.filename}`);
+        await sendMessage(chatId, resolution.media);
+      } else {
+        await applyReplyDelay(chatId);
+        console.log(`Sending text ${i + 1}/${segments.length}: ${segment}`);
+        await sendMessage(chatId, segment);
+      }
     }
 
   } catch (error) {
@@ -732,12 +753,22 @@ function setupIPCHandlers() {
   });
 }
 
-// Send a message
-export async function sendMessage(chatId: string, text: string): Promise<boolean> {
+// Send a message — text or media
+export async function sendMessage(chatId: string, text: string): Promise<boolean>;
+export async function sendMessage(chatId: string, media: MessageMedia, caption?: string): Promise<boolean>;
+export async function sendMessage(
+  chatId: string,
+  content: string | MessageMedia,
+  caption?: string
+): Promise<boolean> {
   if (!whatsappClient) return false;
-  
+
   try {
-    await whatsappClient.sendMessage(chatId, text);
+    if (typeof content === 'string') {
+      await whatsappClient.sendMessage(chatId, content);
+    } else {
+      await whatsappClient.sendMessage(chatId, content, { caption });
+    }
     return true;
   } catch (error) {
     console.error('Error sending message:', error);

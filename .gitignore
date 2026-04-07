@@ -3,6 +3,9 @@
 .wwebjs_cache/
 new-build/
 
+# Images
+images/
+
 # Logs
 logs
 *.log

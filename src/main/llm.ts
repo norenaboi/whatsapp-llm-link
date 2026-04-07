@@ -1,5 +1,6 @@
 ﻿import OpenAI from 'openai';
 import axios from 'axios';
+import { getAvailableImages } from './imageResolver';
 
 // Define types needed
 interface LLMSettings {
@@ -59,45 +60,85 @@ export function configureLLM(settings: LLMSettings) {
   }
 }
 
+function stripTimestampLines(text: string): string {
+  return text
+    .split('\n')
+    .filter(line => !/^\[Sent at.*\|.*\]/.test(line.trim()))
+    .join('\n')
+    .trim();
+}
+
 // Generate LLM response for a chat
 export async function generateLLMResponse(chat: Chat): Promise<string | null> {
   try {
-    // Convert chat messages to LLM format
     const messages = prepareMessagesForLLM(chat);
-    
-    // Generate response based on provider
+
+    let response: string | null;
     switch (llmSettings.provider) {
       case 'openai':
-        return await generateOpenAIResponse(messages);
+        response = await generateOpenAIResponse(messages);
+        break;
       case 'local':
       case 'custom':
-        return await generateCustomEndpointResponse(messages);
+        response = await generateCustomEndpointResponse(messages);
+        break;
       default:
         throw new Error(`Unsupported LLM provider: ${llmSettings.provider}`);
     }
+
+    if (!response) return null;
+    return stripTimestampLines(response);
+
   } catch (error) {
     console.error('Error generating LLM response:', error);
     return "I'm having trouble connecting to my AI service right now. Please try again later.";
   }
 }
 
+// Formats a Unix timestamp (seconds) into a human-readable string
+function formatTimestamp(timestampSeconds: number): string {
+  const date = new Date(timestampSeconds * 1000);
+  return date.toLocaleString('en-US', {
+    hour:    '2-digit',
+    minute:  '2-digit',
+    hour12:  false,
+  });
+}
+
 // Prepare messages for LLM by converting chat messages to proper format
 function prepareMessagesForLLM(chat: Chat): LLMMessage[] {
+  const availableImages = getAvailableImages();
+  const imageInstructions = availableImages.length > 0
+    ? `\n\nWhen you want to send an image, output its filename on its own line using this exact format: [Image: filename.ext]\nAvailable images: ${availableImages.join(', ')}`
+    : '';
+
   // Start with system message
   const messages: LLMMessage[] = [
-    { role: 'system', content: llmSettings.systemPrompt }
+    { role: 'system', content: llmSettings.systemPrompt + imageInstructions }
   ];
-  
+
   // Add recent messages from chat
   const chatMessages = [...chat.messages].slice(-llmSettings.maxHistoryLength * 2);
-  
+
+  let prevTimestamp: number | null = null;
+
   for (const message of chatMessages) {
+    // --- build the timestamp line ---
+    const ts = message.timestamp;                       // seconds since epoch
+    const tsStr = formatTimestamp(ts);
+
+    const timestampLine = `[Sent at ${tsStr}]`;
+    prevTimestamp = ts;
+
+    // Prepend the metadata line to the message body
+    const content = `${timestampLine}\n${message.body}`;
+
     messages.push({
       role: message.fromMe ? 'assistant' : 'user',
-      content: message.body
+      content,
     });
   }
-  
+
   return messages;
 }
 
