@@ -283,14 +283,10 @@ async function handleIncomingMessage(message: Message) {
         chat.lastMessage = undefined;
         conversationStore.delete(`chat:${chatId}`);
 
-        /*
-        await whatsappClient?.sendMessage(
-          chatId,
-          'Conversation history cleared.'
-        );
-        */
-
         sendChatListUpdate();
+
+        // Ephemeral notification: send but immediately remove from history
+        await sendNotifMessage(chatId, `Conversation history cleared.`);
         console.log(`[/new] Cleared history for chat ${chatId}`);
       }
 
@@ -306,22 +302,14 @@ async function handleIncomingMessage(message: Message) {
 
       // Validate the number
       if (numToDelete <= 0) {
-        /*
-        await whatsappClient?.sendMessage(
-          chatId,
-          'Please provide a number greater than 0.\nUsage: /delete {num}'
-        );
-        */
+        // Ephemeral notification: send but immediately remove from history
+        await sendNotifMessage(chatId, `Please provide a number greater than 0.\nUsage: /delete {num}`);
         return;
       }
 
       if (!chat || chat.messages.length === 0) {
-        /*
-        await whatsappClient?.sendMessage(
-          chatId,
-          'No messages in history to delete.'
-        );
-        */
+        // Ephemeral notification: send but immediately remove from history
+        await sendNotifMessage(chatId, `No messages in history to delete.`);
         return;
       }
 
@@ -345,14 +333,30 @@ async function handleIncomingMessage(message: Message) {
         ? ` (only ${available} message${available !== 1 ? 's' : ''} existed)`
         : '';
 
-      /*
-      await whatsappClient?.sendMessage(
-        chatId,
-        `Deleted last ${actuallyDeleted} message${actuallyDeleted !== 1 ? 's' : ''} from history${wasCapped}.`
-      );
-      */
-
+      // Ephemeral notification: send but immediately remove from history
+      await sendNotifMessage(chatId, `Deleted last ${actuallyDeleted} message${actuallyDeleted !== 1 ? 's' : ''} from history${wasCapped}.`);
       console.log(`[/delete] Removed last ${actuallyDeleted} messages from chat ${chatId}`);
+      return;
+    }
+
+    // /timestamp command — toggle or set timestamp injection
+    const timestampMatch = body.match(/^\/timestamp\s+(on|off)$/i);
+    if (timestampMatch) {
+      const chatId = message.from;
+      const enable = timestampMatch[1].toLowerCase() === 'on';
+
+      // Read current LLM settings, flip the flag, persist
+      const llmStore = new Store({ name: 'llm-settings' });
+      llmStore.store = { ...llmStore.store, showTimestamps: enable };
+
+      // Re-configure the LLM module with the new setting
+      const { configureLLM } = require('./llm');
+      configureLLM(llmStore.store);
+
+      // Ephemeral notification: send but immediately remove from history
+      await sendNotifMessage(chatId, `Timestamps are now ${enable ? 'ON' : 'OFF'}`);
+      console.log(`[/timestamp] Timestamps ${enable ? 'enabled' : 'disabled'}`);
+
       return;
     }
 
@@ -539,6 +543,17 @@ function scheduleRandomAutoMessage(chatId: string) {
   }, delayMs);
 
   randomAutoMessageTimers.set(chatId, timer);
+}
+
+async function sendNotifMessage(chatId: string, text: string): Promise<void> {
+  await sendMessage(chatId, text);
+
+  const chat = chats.get(chatId);
+  if (chat && chat.messages.length > 0) {
+    chat.messages = chat.messages.slice(0, -1);
+    chat.lastMessage = chat.messages.at(-1);
+    saveConversation(chatId, chat.messages);
+  }
 }
 
 // Split LLM response into individual messages on blank lines

@@ -725,6 +725,17 @@
                   <p class="field-hint">Number of recent messages to include in conversation context</p>
                 </div>
                 
+                <div class="settings-field" style="display: flex; align-items: center; gap: 10px;">
+                  <label class="switch">
+                    <input type="checkbox" id="llm-show-timestamps" ${llmSettings.showTimestamps ? 'checked' : ''}>
+                    <span class="slider"></span>
+                  </label>
+                  <div>
+                    <span style="font-weight: bold;">Inject timestamps into LLM context</span>
+                    <p class="field-hint" style="margin: 4px 0 0 0;">Prepends <code>[Sent at HH:MM]</code> to each message in the LLM history. Can also be toggled via <code>/timestamp on</code> and <code>/timestamp off</code> in chat.</p>
+                  </div>
+                </div>
+
                 <div class="settings-buttons">
                   <button class="primary" onclick="saveLLMSettings()">Save Settings</button>
                   <button class="secondary" onclick="testLLMSettings()">Test Settings</button>
@@ -907,7 +918,8 @@
         model: document.getElementById('model')?.value || 'gpt-3.5-turbo',
         temperature: parseFloat(document.getElementById('temperature')?.value || '0.7'),
         systemPrompt: document.getElementById('system-prompt')?.value || 'You are a helpful WhatsApp assistant.',
-        maxHistoryLength: parseInt(document.getElementById('max-history')?.value || '10')
+        maxHistoryLength: parseInt(document.getElementById('max-history')?.value || '10'),
+        showTimestamps: document.getElementById('llm-show-timestamps')?.checked ?? true
       };
       
       // Add provider-specific fields

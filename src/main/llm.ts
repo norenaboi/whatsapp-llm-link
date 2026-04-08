@@ -12,6 +12,7 @@ interface LLMSettings {
   apiKey?: string;
   apiEndpoint?: string;
   customApiKey?: string;
+  showTimestamps?: boolean;
 }
 
 interface Chat {
@@ -120,18 +121,13 @@ function prepareMessagesForLLM(chat: Chat): LLMMessage[] {
   // Add recent messages from chat
   const chatMessages = [...chat.messages].slice(-llmSettings.maxHistoryLength * 2);
 
-  let prevTimestamp: number | null = null;
-
   for (const message of chatMessages) {
-    // --- build the timestamp line ---
-    const ts = message.timestamp;                       // seconds since epoch
-    const tsStr = formatTimestamp(ts);
+    let content = message.body;
 
-    const timestampLine = `[Sent at ${tsStr}]`;
-    prevTimestamp = ts;
-
-    // Prepend the metadata line to the message body
-    const content = `${timestampLine}\n${message.body}`;
+    if (llmSettings.showTimestamps) {
+      const tsStr = formatTimestamp(message.timestamp);
+      content = `[Sent at ${tsStr}]\n${message.body}`;
+    }
 
     messages.push({
       role: message.fromMe ? 'assistant' : 'user',

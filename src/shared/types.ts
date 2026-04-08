@@ -44,6 +44,7 @@ export interface LLMSettings {
   apiEndpoint?: string;
   customApiKey?: string;
   maxHistoryLength: number;
+  showTimestamps: boolean;
 }
 
 export interface LLMMessage {

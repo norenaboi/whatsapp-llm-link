@@ -50,6 +50,7 @@ interface LLMSettings {
   apiKey?: string;
   apiEndpoint?: string;
   customApiKey?: string;
+  showTimestamps?: boolean;
 }
 
 // Default settings
@@ -68,16 +69,16 @@ const defaultAppSettings: AppSettings = {
   randomAutoMessage: false,
   randomAutoMessageMinMinutes: 30,
   randomAutoMessageMaxMinutes: 240
-
 };
 
 const defaultLLMSettings: LLMSettings = {
   provider: 'openai',
   model: 'gpt-3.5-turbo',
-  temperature: 0.7,
+  temperature: 1,
   systemPrompt: 'You are a helpful WhatsApp assistant. Keep responses concise, friendly, and informative.',
-  maxHistoryLength: 10,
-  customApiKey: ''
+  maxHistoryLength: 100,
+  customApiKey: '',
+  showTimestamps: true
 };
 
 // Initialize stores
