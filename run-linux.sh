@@ -1,5 +1,4 @@
 #!/bin/bash
-
 echo "Setting up WhatsApp LLM Assistant..."
 
 # Check if Node.js is installed
@@ -60,6 +59,20 @@ if [ ! -d "node_modules" ]; then
     echo "Installing dependencies..."
     npm install
 fi
+
+# Run TypeScript compilation
+npx tsc
+
+# Check if directory exists; if not, create it
+# -p ensures it creates parent directories if needed and doesn't error if it exists
+mkdir -p dist/renderer
+
+# Copy files
+cp src/renderer/index.html dist/renderer/index.html
+cp src/renderer/styles.css dist/renderer/styles.css
+
+# Start Electron
+npx electron .
 
 # Start the application
 echo "Starting WhatsApp LLM Assistant..."
