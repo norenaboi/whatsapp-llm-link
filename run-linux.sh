@@ -71,9 +71,6 @@ mkdir -p dist/renderer
 cp src/renderer/index.html dist/renderer/index.html
 cp src/renderer/styles.css dist/renderer/styles.css
 
-# Start Electron
-npx electron .
-
 # Start the application
 echo "Starting WhatsApp LLM Assistant..."
 npm run start

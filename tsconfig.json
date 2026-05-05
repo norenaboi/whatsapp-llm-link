@@ -15,12 +15,13 @@
     "sourceMap": true,
     "baseUrl": ".",
     "noImplicitAny": false,
+    "noEmitOnError": false,
     "allowJs": true,
     "paths": {
       "@main/*": ["src/main/*"],
       "@renderer/*": ["src/renderer/*"],
-      "@shared/*": ["src/shared/*"]
-    }
+      "@shared/*": ["src/shared/*"],
+    },
   },
-  "include": ["src/**/*", "src/types/**/*"]
+  "include": ["src/**/*", "src/types/**/*"],
 }
